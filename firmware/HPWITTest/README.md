@@ -1,70 +1,78 @@
-# hpwit ESP32-S3 comparison test
+# hpwit ESP32-S3 full-frame test
 
-This sketch tests the unmodified hpwit `I2SClocklessLedDriver` at commit
-`a736f5ecb1d71056521f8054295a8326908550d4` (main at the time of testing).
-Repository: https://github.com/hpwit/I2SClocklessLedDriver
+Current configuration: **full-frame DMA, NO_WAIT, one persistent RGB array**.
+Validated with Arduino ESP32 core **3.3.12**, eight outputs of 180 RGB pixels,
+Wi-Fi AP and ArduinoOTA enabled. Only 60 LEDs on each of four outputs are
+physically attached during this test.
 
-- Eight outputs: GPIO 8, 9, 10, 11, 13, 14, 15, 16.
-- 180 RGB pixels on each output, GRB wire order, brightness 255.
-- Same test animation as the FastLED baseline: one moving white pixel in the
-  first 60 pixels of outputs 0–3; all other pixels stay black.
-- Target 120 FPS; default streaming DMA, using blocking `showPixels(WAIT)`.
-- Wi-Fi AP and OTA remain enabled. Startup offers a 15-second OTA recovery
-  window before the driver initializes. OTA waits for outstanding DMA.
-- Native USB diagnostics are nonblocking and may drop lines if not consumed.
-- `build_opt.h` requests `-O3`. No FastLED dependency or local library patches
-  are used by this test.
+## Library and build
 
-The stock `FULL_DMA_BUFFER` configuration does not compile on ESP32-S3:
-its full-buffer code uses ESP32-only `descriptor` fields, and references an
-undefined `W` variable. Those errors are recorded in `work/hpwit-full-compile.log`.
-This test does not enable that mode or patch the upstream library.
+The Git clone is installed at:
+`/home/draradech/Arduino/libraries/I2SClocklessLedDriver`
 
-Install the pinned library via a ZIP or supply its directory with Arduino
-CLI's `--library` option. For Arduino IDE use ESP32-S3 Dev Module, Hardware
-CDC and JTAG, USB CDC On Boot enabled, PSRAM disabled, Arduino ESP32 3.3.11.
-Open `HPWITTest.ino`. The FastLED baseline remains in `../LEDOctahedron`.
+Upstream: https://github.com/hpwit/I2SClocklessLedDriver
+Base commit: `a736f5ecb1d71056521f8054295a8326908550d4`
 
-## Initial hardware result
+The clone has a local full-frame repair in `src/I2SClocklessLedDriver.h`.
+Its `docs/developer/full-frame-esp32s3.md` explains the changes and validation.
+The unmodified upstream commit does not compile with `FULL_DMA_BUFFER` on S3.
+No FastLED dependency or custom output driver is used by this sketch.
 
-The stock streaming mode compiled and was flashed via OTA. With Wi-Fi AP and
-OTA enabled, it maintained 120 updates/s; the measured blocking show call was
-about 5.7 ms including transmission. The user reported smooth output with no
-pixel blips. All eight 180-pixel lanes were configured; only the first 60 LEDs
-on four lanes were physically connected. Free heap stabilized near 211,576 B.
-These observations do not validate the unconnected pixels or the broken
-full-frame mode.
+`build_opt.h` contains:
 
-### Reproduce the build
-
-Download and extract the pinned source archive:
-https://github.com/hpwit/I2SClocklessLedDriver/archive/a736f5ecb1d71056521f8054295a8326908550d4.zip
-
-Then compile with Arduino CLI (replace the library directory with the extracted
-folder):
-
-```sh
-arduino-cli compile \
-  --fqbn esp32:esp32:esp32s3:USBMode=hwcdc,CDCOnBoot=cdc \
-  --library /path/to/I2SClocklessLedDriver-a736f5ecb1d71056521f8054295a8326908550d4 \
-  firmware/HPWITTest
+```text
+-O3
+-DFULL_DMA_BUFFER
 ```
 
-For Arduino IDE, install that library ZIP using Sketch > Include Library > Add
-.ZIP Library, then open this sketch. No installed-library sources were changed
-for the hpwit test. Do not enable `FULL_DMA_BUFFER` on this commit.
+The ESP32 Arduino core applies these options to the sketch and library, so the
+feature macro is consistent across translation units. Force a clean rebuild
+when changing these options. Open `HPWITTest.ino` in Arduino IDE using ESP32-S3
+Dev Module, Hardware CDC and JTAG, USB CDC On Boot enabled, PSRAM disabled.
+Do not replace the patched Git clone with the unmodified upstream ZIP.
 
-With exclusive serial access, a 64-window steady-state sample measured
-120.004 updates/s, a maximum reported inter-frame interval of 8,391 us, and a
-maximum show duration of 5,723 us. Free heap was constant at 211,572 B. A first
-reader-close test deliberately changed DTR and reset the USB-Serial/JTAG board;
-that is not a valid test of whether output continues without a serial reader.
-Use a terminal configuration that does not toggle the board's reset lines.
+## Runtime
 
-The corrected reader-close test cleared DTR/RTS together and disabled hangup
-control-line changes. With the reader closed for 20 seconds, the frame counter
-advanced from 4,204 to 8,048 over 32.03331 seconds including the reconnect sample:
-120.0001 updates/s, with no reset. The subsequent measured rate was 120.004
-updates/s, max frame interval 8,390 us, max show duration 5,718 us, and constant
-free heap of 211,568 B. The serial port was closed after the test without
-changing reset lines. The hpwit streaming image is left running on the board.
+- GPIO outputs: 8, 9, 10, 11, 13, 14, 15, 16; GRB wire order, brightness 255.
+- Same moving-white test as the FastLED baseline: first 60 pixels of outputs
+  0–3 animate; the remaining configured pixels stay black.
+- `showPixelsFirstTranspose(NO_WAIT)` waits for the previous DMA frame if
+  needed, encodes the complete waveform, starts DMA, and returns. The RGB
+  source array can be edited immediately afterward; DMA owns a separate
+  staged waveform. There is no second RGB source buffer.
+- The 15-second startup OTA recovery window runs before LED initialization.
+  OTA drains pending LED output before flash operations.
+- Serial diagnostics are nonblocking and may drop reports without a reader.
+  Avoid terminal control-line transitions that reset USB-Serial/JTAG.
+
+## Checks and results
+
+Startup verifies the 182-descriptor, 28112-byte chain with one EOF at the reset
+low tail and zero prefix/tail data. It exercises repeated WAIT submissions,
+immediate NO_WAIT resubmission, source mutation without changing staged data,
+loop start/stop and return to single-shot, and sync-semaphore reuse. Failure
+leaves animation disabled with OTA available.
+
+The first full-frame test sustained 120 FPS with staging/submission around
+0.7 ms and visually smooth output without blips. A finite synthetic 5 ms CPU
+rendering load sustained 120.004 FPS across 19 complete steady windows, with
+maximum staging/submission 770 us and maximum frame interval 8428 us. Every
+frame in those windows edited the RGB array while the previous DMA transfer
+was active.
+
+That load is **disabled** in the normal build. To reproduce, enable
+`HPWIT_RENDER_STRESS_TEST` in `led.cpp`; it applies the load from 5 to 25 seconds
+after the animation starts, then automatically returns to normal. Diagnostics
+include render time and the number of source edits overlapping DMA output.
+
+The committed streaming sketch was separately compiled and smoke-tested
+against the patched library on core 3.3.12: 120 FPS and about 5.7 ms for blocking
+show, with steady heap. Earlier streaming tests also verified output with the
+serial reader closed for 20 seconds. Actual eight-lane, full-length chains,
+other chip targets and RGBW/RGBCCT output remain outside this hardware test.
+
+Final normal-build validation on core 3.3.12: 75 steady windows measured
+120.0048 FPS, maximum staging/submission 738 us, maximum reported frame
+interval 8412 us, and free heap 146016–146040 B. All startup checks passed;
+the synthetic load was disabled. This image is left running and the serial
+reader has been closed without toggling the reset signals.
