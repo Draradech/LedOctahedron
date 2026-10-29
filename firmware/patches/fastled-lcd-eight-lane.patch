@@ -1,0 +1,45 @@
+--- a/src/platforms/esp/32/drivers/lcd_spi/channel_driver_lcd_clockless.cpp.hpp
++++ b/src/platforms/esp/32/drivers/lcd_spi/channel_driver_lcd_clockless.cpp.hpp
+@@ -377,6 +377,15 @@
+     fl::span<const ChannelDataPtr> channels, u16 *output,
+     size_t startByte, size_t byteCount) FL_NO_EXCEPT {
+     size_t outputIdx = 0; // bytes written
++    u8 upperLaneWave[8 * sizeof(Wave3Byte)] = {};
++    if (mUseWave3 && channels.size() <= 8) {
++        u8 zeroWave[sizeof(Wave3Byte)];
++        wave3(0, mWave3Lut, zeroWave);
++        for (size_t i = 0; i < sizeof(upperLaneWave); ++i) {
++            upperLaneWave[i] =
++                (zeroWave[i / 8] & (0x80 >> (i % 8))) ? 0xff : 0;
++        }
++    }
+ 
+     for (size_t byteIdx = startByte; byteIdx < startByte + byteCount;
+          byteIdx++) {
+@@ -392,11 +401,21 @@
+ 
+         if (mUseWave3) {
+             u8 transposed[16 * sizeof(Wave3Byte)]; // 48 bytes = 24 u16 words
+-            wave3Transpose_16(
+-                reinterpret_cast<const u8 (&)[16]>(lanes), // ok reinterpret cast
+-                mWave3Lut,
+-                reinterpret_cast<u8 (&)[16 * sizeof(Wave3Byte)]>( // ok reinterpret cast
+-                    transposed));
++            if (channels.size() <= 8) {
++                u8 packed[8 * sizeof(Wave3Byte)];
++                wave3Transpose_8(
++                    reinterpret_cast<const u8 (&)[8]>(lanes), mWave3Lut, packed);
++                // I80 uses 16-bit words: preserve the zero-data waveform on
++                // the unused upper lanes, matching the 16-lane encoder.
++                for (size_t i = 0; i < sizeof(packed); ++i) {
++                    transposed[2 * i] = packed[i];
++                    transposed[2 * i + 1] = upperLaneWave[i];
++                }
++            } else {
++                wave3Transpose_16(
++                    reinterpret_cast<const u8 (&)[16]>(lanes), mWave3Lut,
++                    reinterpret_cast<u8 (&)[16 * sizeof(Wave3Byte)]>(transposed));
++            }
+             fl::memcpy(reinterpret_cast<u8 *>(output) + outputIdx, // ok reinterpret cast
+                        transposed, sizeof(transposed));
+             outputIdx += sizeof(transposed);

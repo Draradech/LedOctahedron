@@ -1,0 +1,20 @@
+--- a/src/platforms/esp/32/drivers/lcd_spi/lcd_spi_peripheral_esp.cpp.hpp
++++ b/src/platforms/esp/32/drivers/lcd_spi/lcd_spi_peripheral_esp.cpp.hpp
+@@ -24,6 +24,7 @@
+ // IWYU pragma: end_keep
+ #include "esp_lcd_panel_io.h"
+ #include "esp_heap_caps.h"
++#include "esp_memory_utils.h"
+ #include "esp_timer.h"
+ #include "platforms/esp/esp_version.h"
+ 
+@@ -416,7 +417,8 @@
+     // IDF 5.2+, but explicit sync guards against edge cases where the
+     // same buffer pointer is reused with different data.
+ #if FL_HAS_ESP_CACHE_MSYNC
+-    {
++    // Internal DMA RAM bypasses the cache; only PSRAM needs writeback.
++    if (esp_ptr_external_ram(buffer)) {
+         // Round up to cache-line boundary (64 bytes). Safe because the
+         // buffer allocation is always 64-byte aligned and oversized.
+         size_t sync_size = ((size_bytes + 63) & ~(size_t)63);
