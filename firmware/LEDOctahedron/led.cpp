@@ -1,10 +1,9 @@
 #include "stdinc.h"
 
+#include "rgb.h"
 #include <Arduino.h>
 #include <I2SClocklessLedDriver.h>
 
-struct Rgb { uint8_t r, g, b; };
-static_assert(sizeof(Rgb) == 3, "Packed RGB pixels required");
 static I2SClocklessLedDriver driver;
 static bool driverReady = false;
 
@@ -15,7 +14,7 @@ static bool driverReady = false;
 #define FPS 120u
 #define FRAME_US (1000000u / FPS)
 
-static Rgb leds[NUM_STRIPS][NUM_LEDS];
+static RGB leds[NUM_STRIPS][NUM_LEDS];
 static uint8_t animation;
 
 void animationStep(void);
@@ -23,12 +22,14 @@ void animationStep(void);
 void anim00(void);
 void anim01(void);
 void anim02(void);
+void anim03(void);
 
 static void (*animations[])(void) =
 {
   anim00,
   anim01,
-  anim02
+  anim02,
+  anim03
 };
 
 static uint32_t last;
@@ -48,7 +49,7 @@ void setupLeds(void)
   Serial.printf("HPWIT: full-frame DMA NO_WAIT, %d lanes x %d pixels\n", NUM_STRIPS, NUM_LEDS);
   #endif
   last = micros();
-  animation = 2;
+  animation = 3;
 }
 
 void loopLeds(void)
@@ -69,12 +70,12 @@ void anim00(void)
   static uint8_t led = 0;
   for (uint8_t strip = 0; strip < TEST_STRIPS; ++strip)
   {
-    leds[strip][led] = Rgb{0, 0, 0};
+    leds[strip][led] = RGB::Black;
   }
   if(++led == TEST_LEDS) led = 0;
   for (uint8_t strip = 0; strip < TEST_STRIPS; ++strip)
   {
-    leds[strip][led] = Rgb{255, 255, 255};
+    leds[strip][led] = RGB::White;
   }
 }
 
@@ -84,7 +85,7 @@ void anim01(void)
   if(++led == TEST_LEDS) led = 0;
   for (uint8_t strip = 0; strip < TEST_STRIPS; ++strip)
   {
-    leds[strip][led] = Rgb{255, 255, 255};
+    leds[strip][led] = RGB::White;
   }
 }
 
@@ -94,24 +95,39 @@ void anim02(void)
   uint8_t led = nextled;
   for (uint8_t strip = 0; strip < TEST_STRIPS; ++strip)
   {
-    leds[strip][led] = Rgb{0, 0, 0};
+    leds[strip][led] = RGB::Black;
   }
   if(++led == TEST_LEDS) led = 0;
   for (uint8_t strip = 0; strip < TEST_STRIPS; ++strip)
   {
-    leds[strip][led] = Rgb{255, 0, 0};
+    leds[strip][led] = RGB(255, 0, 0);
   }
   if(++led == TEST_LEDS) led = 0;
   for (uint8_t strip = 0; strip < TEST_STRIPS; ++strip)
   {
-    leds[strip][led] = Rgb{0, 255, 0};
+    leds[strip][led] = RGB(0, 255, 0);
   }
   if(++led == TEST_LEDS) led = 0;
   for (uint8_t strip = 0; strip < TEST_STRIPS; ++strip)
   {
-    leds[strip][led] = Rgb{0, 0, 255};
+    leds[strip][led] = RGB(0, 0, 255);
   }
   if(++nextled == TEST_LEDS) nextled = 0;
+}
+
+void anim03(void)
+{
+  static uint8_t phase = 0;
+  ++phase;
+  for (uint8_t led = 0; led < TEST_LEDS; ++led)
+  {
+    uint8_t hue = 255 * led / TEST_LEDS + phase;
+    RGB col = RGB::fromHSV(hue , 255, 255);
+    for (uint8_t strip = 0; strip < TEST_STRIPS; ++strip)
+    {
+      leds[strip][led] = col;
+    }
+  }
 }
 
 void animationStep(void)
