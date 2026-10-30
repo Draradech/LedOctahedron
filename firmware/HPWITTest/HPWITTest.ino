@@ -10,9 +10,6 @@ void setup(void)
   Serial.printf("\nOctahedron boot: reset reason=%d\n", (int)esp_reset_reason());
   setupWifi();
   setupOta();
-  Serial.println("HPWIT test: 15-second OTA recovery window before LED initialization");
-  const uint32_t recoveryStart = millis();
-  while (millis() - recoveryStart < 15000) { loopOta(); delay(1); }
   setupLeds();
 }
 

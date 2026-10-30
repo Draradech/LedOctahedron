@@ -22,12 +22,13 @@ void animationStep(void);
 
 void anim00(void);
 void anim01(void);
+void anim02(void);
 
 void (*animations[10])(void) =
 {
   &anim00,
   &anim01,
-  NULL,
+  &anim02,
   NULL,
   NULL,
   NULL,
@@ -94,7 +95,7 @@ static bool testFullFrameModes()
 void setupLeds(void)
 {
   static uint8_t pins[] = {8, 9, 10, 11, 13, 14, 15, 16};
-  driver.initled((uint8_t*)leds, pins, NUM_STRIPS, NUM_LEDS, ORDER_GRB);
+  driver.initled((uint8_t*)leds, pins, NUM_STRIPS, NUM_LEDS, ORDER_RGB);
   driver.setBrightness(255);
   if (!validateFullFrameDma() || !testFullFrameModes()) {
     Serial.println("HPWIT full-frame self-test FAILED; animation disabled, OTA available");
@@ -103,7 +104,7 @@ void setupLeds(void)
   driverReady = true;
   Serial.printf("HPWIT: full-frame DMA NO_WAIT, %d lanes x %d pixels; self-test PASS\n", NUM_STRIPS, NUM_LEDS);
   next = micros();
-  animation = 0;
+  animation = 2;
 }
 
 void loopLeds(void)
@@ -147,6 +148,32 @@ void anim01(void)
   leds[1][led] = Rgb{255, 255, 255};
   leds[2][led] = Rgb{255, 255, 255};
   leds[3][led] = Rgb{255, 255, 255};
+}
+
+void anim02(void)
+{
+  static unsigned char nextled = 0;
+  unsigned char led = nextled;
+  leds[0][led] = Rgb{0, 0, 0};
+  leds[1][led] = Rgb{0, 0, 0};
+  leds[2][led] = Rgb{0, 0, 0};
+  leds[3][led] = Rgb{0, 0, 0};
+  if(++led == 60) led = 0;
+  leds[0][led] = Rgb{255, 0, 0};
+  leds[1][led] = Rgb{255, 0, 0};
+  leds[2][led] = Rgb{255, 0, 0};
+  leds[3][led] = Rgb{255, 0, 0};
+  if(++led == 60) led = 0;
+  leds[0][led] = Rgb{0, 255, 0};
+  leds[1][led] = Rgb{0, 255, 0};
+  leds[2][led] = Rgb{0, 255, 0};
+  leds[3][led] = Rgb{0, 255, 0};
+  if(++led == 60) led = 0;
+  leds[0][led] = Rgb{0, 0, 255};
+  leds[1][led] = Rgb{0, 0, 255};
+  leds[2][led] = Rgb{0, 0, 255};
+  leds[3][led] = Rgb{0, 0, 255};
+  if(++nextled == 60) nextled = 0;
 }
 
 void animationStep(void)
