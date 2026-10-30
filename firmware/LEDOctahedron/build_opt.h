@@ -1,0 +1,2 @@
+-O3
+-DFULL_DMA_BUFFER
