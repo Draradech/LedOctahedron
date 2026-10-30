@@ -38,11 +38,15 @@ void setupLeds(void)
   driver.initled((uint8_t*)leds, pins, NUM_STRIPS, NUM_LEDS, ORDER_RGB);
   driver.setBrightness(255);
   if (!driver.enableDriver || driver.dmaBuffersTransposed == nullptr) {
+    #if REPORT_MODE == REPORT_SERIAL
     Serial.println("HPWIT initialization failed; animation disabled, OTA available");
+    #endif
     return;
   }
   driverReady = true;
+  #if REPORT_MODE == REPORT_SERIAL
   Serial.printf("HPWIT: full-frame DMA NO_WAIT, %d lanes x %d pixels\n", NUM_STRIPS, NUM_LEDS);
+  #endif
   last = micros();
   animation = 2;
 }
@@ -110,48 +114,20 @@ void anim02(void)
   if(++nextled == TEST_LEDS) nextled = 0;
 }
 
-static void reportFrame(uint32_t showStart, uint32_t showEnd, uint32_t renderEnd)
-{
-  static uint32_t frames = 0, lastReport = 0;
-  static uint32_t maxRenderUs = 0, maxShowUs = 0;
-  static uint32_t lastFrameUs = 0, maxFrameUs = 0;
-  uint32_t renderUs = renderEnd - showEnd;
-  uint32_t showUs = showEnd - showStart;
-  if (renderUs > maxRenderUs) maxRenderUs = renderUs;
-  if (showUs > maxShowUs) maxShowUs = showUs;
-  if (lastFrameUs && showEnd - lastFrameUs > maxFrameUs)
-  {
-    maxFrameUs = showEnd - lastFrameUs;
-  }
-  lastFrameUs = showEnd;
-  ++frames;
-  uint32_t reportNow = millis();
-  if (reportNow - lastReport >= 1000)
-  {
-    char report[300];
-    int32_t len =
-      snprintf(report, sizeof(report),
-      "LED: frames=%lu interval_ms=%lu max_show_us=%lu max_frame_us=%lu heap=%lu render_us=%lu\n",
-      frames, reportNow - lastReport, maxShowUs, maxFrameUs, ESP.getFreeHeap(), maxRenderUs);
-
-    // Don't stall animation when USB is disconnected or the reader falls behind.
-    if (Serial && len > 0 && len < sizeof(report) && Serial.availableForWrite() >= len)
-    {
-      Serial.write(report, len);
-    }
-    frames = maxRenderUs = maxShowUs = maxFrameUs = 0;
-    lastReport = reportNow;
-  }
-}
-
 void animationStep(void)
 {
+  #if REPORT_MODE != REPORT_OFF
   uint32_t showStart = micros();
+  #endif
   driver.showPixelsFirstTranspose(NO_WAIT);
+  #if REPORT_MODE != REPORT_OFF
   uint32_t showEnd = micros();
+  #endif
   animations[animation]();
+  #if REPORT_MODE != REPORT_OFF
   uint32_t renderEnd = micros();
   reportFrame(showStart, showEnd, renderEnd);
+  #endif
 }
 
 void waitLeds(void)
