@@ -37,7 +37,7 @@ void setupLeds(void)
 {
   static uint8_t pins[] = {3, 5, 6, 7, 13, 14, 15, 16};
   driver.initled((uint8_t*)leds, pins, NUM_STRIPS, NUM_LEDS, ORDER_RGB);
-  driver.setBrightness(255);
+  driver.setBrightness(32);
   if (!driver.enableDriver || driver.dmaBuffersTransposed == nullptr) {
     #if REPORT_MODE == REPORT_SERIAL
     Serial.println("HPWIT initialization failed; animation disabled, OTA available");

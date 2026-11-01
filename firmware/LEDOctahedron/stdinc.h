@@ -6,7 +6,7 @@
 #define REPORT_SERIAL 1
 #define REPORT_UDP 2
 #ifndef REPORT_MODE
-#define REPORT_MODE REPORT_UDP
+#define REPORT_MODE REPORT_OFF
 #endif
 
 #define REPORT_UDP_ADDRESS "192.168.4.255"
